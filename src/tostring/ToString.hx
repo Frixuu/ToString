@@ -81,6 +81,12 @@ final class ToString {
         }
 
         for (baseField in baseFields) {
+
+            final meta = baseField.meta;
+            if (meta.has(":tostring.exclude")) {
+                continue;
+            }
+
             switch (baseField.kind) {
                 case FVar(read, _) if (read != AccNever):
                     hasAnyField = true;
@@ -90,6 +96,12 @@ final class ToString {
         }
 
         for (buildField in buildFields) {
+
+            final meta = buildField.meta;
+            if (meta != null && meta.exists(m -> m.name == ":tostring.exclude")) {
+                continue;
+            }
+
             switch (buildField.kind) {
                 case FVar(_, _):
                     hasAnyField = true;
