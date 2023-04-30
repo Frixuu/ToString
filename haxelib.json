@@ -3,9 +3,9 @@
   "url": "https://github.com/Frixuu/ToString/",
   "description": "Macro for implementing toString on your types (and other string-related tools).",
   "license": "MIT",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "classPath": "src/",
-  "releasenote": "Initial release",
+  "releasenote": "Misc. contract changes; slightly improve performance in some cases.",
   "contributors": [
     "frixuu"
   ],
