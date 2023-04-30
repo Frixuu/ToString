@@ -1,0 +1,12 @@
+--define analyzer-optimize
+--dce full
+
+--library tostring
+--library benched:0.2.0
+--library hxnodejs
+
+--each
+
+--class-path multiline
+--main BenchmarkMain
+--js out/js/benches_multiline.js

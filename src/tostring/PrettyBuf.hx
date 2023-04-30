@@ -22,6 +22,16 @@ class PrettyBuf {
     **/
     public var options(default, default): PrettyBufOptions;
 
+    /** Char code of carriage return (the \r character). **/
+    private static inline var CR: Int = 13;
+
+    /** Char code of line feed (the \n character). **/
+    private static inline var LF: Int = 10;
+
+    #if js
+    private static final newLineRegex: js.lib.RegExp = new js.lib.RegExp("\r\n|\n");
+    #end
+
     /**
         Creates a new `PrettyBuf`.
     **/
@@ -80,9 +90,65 @@ class PrettyBuf {
 
     /**
         Splits a provided `String` into lines and adds them to this buffer,
-        adding new line and indentation tokens.
+        adding new line and indentation tokens where necessary.
+
+        Note: If you control your input's line endings,
+        `addMultilineWithDelimiter` _might_ be faster on your target platform.
     **/
-    public final function addMultiline(s: String, delimiter: String = "\n") {
+    public final function addMultiline(s: String) {
+        #if js
+        addMultilineJsImpl(s);
+        #else
+        addMultilineDefaultImpl(s);
+        #end
+    }
+
+    /**
+        Splits a `String` into lines and adds them to this buffer, decorating when necessary.
+
+        This implementation parses the input character-by-character.
+    **/
+    private inline function addMultilineDefaultImpl(s: String) {
+        final strLength: Int = s.length;
+        var lastEolPos: Int = 0;
+        var currentPos: Int = 0;
+        var currentCode: Int = StringTools.fastCodeAt(s, currentPos++);
+        while (currentPos < strLength) {
+            // TODO: this implementation also matches multiple CR chars, which is inconsistent
+            if (currentCode == LF || currentCode == CR) {
+                if ((currentPos - lastEolPos) > 1 || StringTools.fastCodeAt(s, lastEolPos) == CR) {
+                    this.addLine(s.substring(lastEolPos, currentPos - 1));
+                }
+                lastEolPos = currentPos;
+            }
+            currentCode = StringTools.fastCodeAt(s, currentPos++);
+        }
+
+        if ((strLength - lastEolPos) > 1) {
+            this.addLine(s.substring(lastEolPos));
+        }
+    }
+
+    #if js
+    /**
+        Adds a multiline string to this buffer, using built-in Regexp functionality.
+
+        This JS-specific solution seems to be about 2 times faster than the default implementation.
+        See the `benches/` directory in the repository.
+    **/
+    private inline function addMultilineJsImpl(s: String) {
+        for (line in s.split(untyped newLineRegex)) {
+            this.addLine(line);
+        }
+    }
+    #end
+
+    /**
+        Splits a provided `String` into lines using a custom delimiter
+        and adds them to this buffer,
+        adding new line and indentation tokens where necessary.
+    **/
+    public final function addMultilineWithDelimiter(s: String, delimiter: String) {
         for (line in s.split(delimiter)) {
             this.addLine(line);
         }
@@ -95,7 +161,7 @@ class PrettyBuf {
         Note: `add`- calls can (and do) generate more than one token.
         This function might NOT undo whole `add`- calls.
     **/
-    public final function pop(): Bool {
+    public final function popToken(): Bool {
         return this.inner.pop() != null;
     }
 
@@ -103,7 +169,7 @@ class PrettyBuf {
         Resets the internal state of this buffer.
     **/
     public final function clear() {
-        while (this.pop()) {}
+        while (this.popToken()) {}
         this.currentIndentLevel = 0;
     }
 

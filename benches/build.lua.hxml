@@ -1,0 +1,13 @@
+--define analyzer-optimize
+--define lua-vanilla
+--define lua-ver=5.1
+--dce full
+
+--library tostring
+--library benched:0.2.0
+
+--each
+
+--class-path multiline
+--main BenchmarkMain
+--lua out/lua/benches_multiline.lua

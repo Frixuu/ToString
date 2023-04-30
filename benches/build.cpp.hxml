@@ -1,0 +1,12 @@
+--define analyzer-optimize
+--define no-debug
+--dce full
+
+--library tostring
+--library benched:0.2.0
+
+--each
+
+--class-path multiline
+--main BenchmarkMain
+--cpp out/cpp/benches_multiline

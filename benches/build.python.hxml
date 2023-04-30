@@ -1,0 +1,11 @@
+--define analyzer-optimize
+--dce full
+
+--library tostring
+--library benched:0.2.0
+
+--each
+
+--class-path multiline
+--main BenchmarkMain
+--python out/py/benches_multiline.py
