@@ -81,10 +81,13 @@ class PrettyBuf {
     }
 
     /**
-        Pushes a `String` to this buffer, following it with a new line token.
+        Pushes a new line token to this buffer
+        preceding it by the input line, if it is not empty.
     **/
     public final function addLine(line: String = "") {
-        this.add(line);
+        if (line.length > 0) {
+            this.add(line);
+        }
         this.inner.push(NewLine);
     }
 

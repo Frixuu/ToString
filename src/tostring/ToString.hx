@@ -23,6 +23,7 @@ final class ToString {
     public static macro function generate(?options: MacroOptions): Array<Field> {
 
         options = options == null ? {} : options;
+        options.pretty = options.pretty == null ? false : options.pretty;
 
         final pos = Context.currentPos();
         final fields = Context.getBuildFields();
@@ -43,7 +44,7 @@ final class ToString {
                 params: [],
                 args: [],
                 ret: (macro : String),
-                expr: macro $b{generateImpl(fields, baseFields)},
+                expr: macro $b{generateImpl(fields, baseFields, options)},
             }),
         };
 
@@ -57,18 +58,30 @@ final class ToString {
     **/
     private static function generateImpl(
         buildFields: Array<Field>,
-        baseFields: Array<ClassField>
+        baseFields: Array<ClassField>,
+        options: MacroOptions,
     ): Array<Expr> {
 
         final exprs: Array<Expr> = [];
-        exprs.push(macro final buf = new tostring.PrettyBuf({indentStr: "", newLineStr: " "}));
+        if (options.pretty) {
+            exprs.push(macro final buf = new tostring.PrettyBuf({
+                indentStr: "  ",
+                newLineStr: "\n"
+            }));
+        } else {
+            exprs.push(macro var buf = new StringBuf());
+        }
 
         final localClass = Context.getLocalClass().get();
         final className = localClass.name;
         exprs.push(macro buf.add($v{className}));
-        exprs.push(macro buf.add(" {"));
-        exprs.push(macro buf.addLine());
-        exprs.push(macro buf.increaseIndent());
+        if (options.pretty) {
+            exprs.push(macro buf.add(" {"));
+            exprs.push(macro buf.addLine());
+            exprs.push(macro buf.increaseIndent());
+        } else {
+            exprs.push(macro buf.add(" { "));
+        }
 
         var hasAnyField = false;
 
@@ -76,8 +89,12 @@ final class ToString {
             exprs.push(macro buf.add($v{name}));
             exprs.push(macro buf.add(": "));
             exprs.push(macro buf.add(Std.string(this.$name)));
-            exprs.push(macro buf.add(","));
-            exprs.push(macro buf.addLine());
+            if (options.pretty) {
+                exprs.push(macro buf.add(","));
+                exprs.push(macro buf.addLine());
+            } else {
+                exprs.push(macro buf.add(", "));
+            }
         }
 
         for (baseField in baseFields) {
@@ -113,16 +130,26 @@ final class ToString {
             }
         }
 
-        if (hasAnyField) {
-            exprs.pop(); // new line
-            exprs.pop(); // trailing comma
+        if (options.pretty) {
+            exprs.pop();
+            exprs.pop();
+            if (hasAnyField) {
+                exprs.push(macro buf.decreaseIndent());
+                exprs.push(macro buf.addLine());
+            }
+            exprs.push(macro buf.add("}"));
+            exprs.push(macro return buf.toString());
+        } else {
+            exprs.push(macro var str = buf.toString());
+            if (hasAnyField) {
+                exprs.push(macro str = str.substr(0, str.length - 2));
+                exprs.push(macro return str + " }");
+            } else {
+                exprs.push(macro str = str.substr(0, str.length - 1));
+                exprs.push(macro return str + "}");
+            }
         }
 
-        exprs.push(macro buf.decreaseIndent());
-        exprs.push(macro buf.addLine());
-        exprs.push(macro buf.add("}"));
-
-        exprs.push(macro return buf.toString());
         return exprs;
     }
 
@@ -139,4 +166,11 @@ final class ToString {
         return fields;
     }
     #end
+}
+
+/**
+    Options for the `ToString.generate()` build macro.
+**/
+typedef MacroOptions = {
+    public var ?pretty: Bool;
 }
