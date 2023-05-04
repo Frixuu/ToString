@@ -8,7 +8,7 @@ using namespace System.IO
 [string]$zipPath = Join-Path $projectRoot "$($projectName)_$($now).zip"
 
 [FileInfo]$archiveFile = @(
-    "haxelib.json", "*.hxml",
+    "haxelib.json", "extraParams.hxml",
     "src",
     "LICENSE.txt",
     "README.md"

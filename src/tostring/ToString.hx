@@ -44,7 +44,7 @@ final class ToString {
                 params: [],
                 args: [],
                 ret: (macro : String),
-                expr: macro $b{generateImpl(fields, baseFields, options)},
+                expr: macro $b{generateImpl(baseFields, fields, options)},
             }),
         };
 
@@ -57,99 +57,127 @@ final class ToString {
         Generates the body of the `toString` method.
     **/
     private static function generateImpl(
-        buildFields: Array<Field>,
         baseFields: Array<ClassField>,
+        buildFields: Array<Field>,
         options: MacroOptions,
     ): Array<Expr> {
 
-        final exprs: Array<Expr> = [];
-        if (options.pretty) {
-            exprs.push(macro final buf = new tostring.PrettyBuf({
-                indentStr: "  ",
-                newLineStr: "\n"
-            }));
-        } else {
-            exprs.push(macro var buf = new StringBuf());
+        // First, let's filter out the fields that we will not use
+        baseFields = baseFields.filter(field -> {
+            if (field.meta.has(":tostring.exclude"))
+                return false;
+            return switch (field.kind) {
+                case FVar(read, _) if (read != AccNever):
+                    true;
+                default:
+                    false;
+            }
+        });
+        buildFields = buildFields.filter(field -> {
+            final meta = field.meta;
+            if (meta != null && meta.exists(m -> m.name == ":tostring.exclude"))
+                return false;
+            return switch (field.kind) {
+                case FVar(_, _):
+                    true;
+                case FProp(get, _, _, _) if (get != "never"):
+                    true;
+                default:
+                    false;
+            }
+        });
+
+        // Empty classes have the same representation in either mode
+        final localClass = Context.getLocalClass().get();
+        final className = localClass.name;
+        if (baseFields.length + buildFields.length == 0) {
+            return [macro return $v{className} + " { }"];
         }
 
+        return if (options.pretty) {
+            generateImplPretty(baseFields, buildFields, options);
+        } else {
+            generateImplNormal(baseFields, buildFields, options);
+        }
+    }
+
+    private static function generateImplNormal(
+        baseFields: Array<ClassField>,
+        buildFields: Array<Field>,
+        options: MacroOptions,
+    ): Array<Expr> {
+        final exprs: Array<Expr> = [];
+        exprs.push(macro final buf = new StringBuf());
         final localClass = Context.getLocalClass().get();
         final className = localClass.name;
         exprs.push(macro buf.add($v{className}));
-        if (options.pretty) {
-            exprs.push(macro buf.add(" {"));
-            exprs.push(macro buf.addLine());
-            exprs.push(macro buf.increaseIndent());
-        } else {
-            exprs.push(macro buf.add(" { "));
+        exprs.push(macro buf.add(" { "));
+
+        final fieldCount = baseFields.length + buildFields.length;
+        var currentIndex = 1;
+
+        function pushField(name: String) {
+            exprs.push(macro buf.add($v{name}));
+            exprs.push(macro buf.add(": "));
+            exprs.push(macro buf.add((this.$name)));
+            if (currentIndex < fieldCount) {
+                exprs.push(macro buf.add(", "));
+            }
+            currentIndex += 1;
         }
 
-        var hasAnyField = false;
+        for (baseField in baseFields) {
+            pushField(baseField.name);
+        }
+
+        for (buildField in buildFields) {
+            pushField(buildField.name);
+        }
+
+        exprs.push(macro buf.add(" }"));
+        exprs.push(macro return buf.toString());
+        return exprs;
+    }
+
+    private static function generateImplPretty(
+        baseFields: Array<ClassField>,
+        buildFields: Array<Field>,
+        options: MacroOptions,
+    ): Array<Expr> {
+        final exprs: Array<Expr> = [];
+        exprs.push(macro final buf = new tostring.PrettyBuf());
+        final localClass = Context.getLocalClass().get();
+        final className = localClass.name;
+        exprs.push(macro buf.add($v{className}));
+        exprs.push(macro buf.addLine(" {"));
+        exprs.push(macro buf.increaseIndent());
+
+        final fieldCount = baseFields.length + buildFields.length;
+        var currentIndex = 1;
 
         function pushField(name: String) {
             exprs.push(macro buf.add($v{name}));
             exprs.push(macro buf.add(": "));
             exprs.push(macro buf.add(Std.string(this.$name)));
-            if (options.pretty) {
-                exprs.push(macro buf.add(","));
-                exprs.push(macro buf.addLine());
+            if (currentIndex < fieldCount) {
+                exprs.push(macro buf.addLine(","));
             } else {
-                exprs.push(macro buf.add(", "));
+                exprs.push(macro buf.addLine());
             }
+            currentIndex += 1;
         }
 
         for (baseField in baseFields) {
-
-            final meta = baseField.meta;
-            if (meta.has(":tostring.exclude")) {
-                continue;
-            }
-
-            switch (baseField.kind) {
-                case FVar(read, _) if (read != AccNever):
-                    hasAnyField = true;
-                    pushField(baseField.name);
-                default:
-            }
+            pushField(baseField.name);
         }
 
         for (buildField in buildFields) {
-
-            final meta = buildField.meta;
-            if (meta != null && meta.exists(m -> m.name == ":tostring.exclude")) {
-                continue;
-            }
-
-            switch (buildField.kind) {
-                case FVar(_, _):
-                    hasAnyField = true;
-                    pushField(buildField.name);
-                case FProp(get, _, _, _) if (get != "never"):
-                    hasAnyField = true;
-                    pushField(buildField.name);
-                default:
-            }
+            pushField(buildField.name);
         }
 
-        if (options.pretty) {
-            exprs.pop();
-            exprs.pop();
-            if (hasAnyField) {
-                exprs.push(macro buf.decreaseIndent());
-                exprs.push(macro buf.addLine());
-            }
-            exprs.push(macro buf.add("}"));
-            exprs.push(macro return buf.toString());
-        } else {
-            exprs.push(macro var str = buf.toString());
-            if (hasAnyField) {
-                exprs.push(macro str = str.substr(0, str.length - 2));
-                exprs.push(macro return str + " }");
-            } else {
-                exprs.push(macro str = str.substr(0, str.length - 1));
-                exprs.push(macro return str + "}");
-            }
-        }
-
+        exprs.push(macro buf.decreaseIndent());
+        exprs.push(macro buf.add("}"));
+        exprs.push(macro return buf.toString());
         return exprs;
     }
 

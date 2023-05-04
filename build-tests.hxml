@@ -1,0 +1,19 @@
+--class-path src
+--class-path test
+
+--dce no
+--define unittest
+--define coverage-console-package-summary-reporter
+--define coverage-lcov-reporter
+
+--library instrument:git:https://github.com/AlexHaxe/haxe-instrument
+--library buddy:2.13.0
+--library utest:1.13.2
+
+--macro instrument.Instrumentation.coverage(['tostring'], ['src'], null)
+--main tostring.TestMain
+
+--each
+
+--library hxnodejs
+--js test/out/js/test.js
