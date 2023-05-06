@@ -3,7 +3,7 @@
 
 --dce no
 --define unittest
---define coverage-console-package-summary-reporter
+--define coverage-console-file-summary-reporter
 --define coverage-lcov-reporter
 
 --library instrument:git:https://github.com/AlexHaxe/haxe-instrument
@@ -17,3 +17,7 @@
 
 --library hxnodejs
 --js test/out/js/test.js
+
+--next
+
+--lua test/out/lua/test.lua

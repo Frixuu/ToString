@@ -97,13 +97,20 @@ class PrettyBuf {
 
         Note: If you control your input's line endings,
         `addMultilineWithDelimiter` _might_ be faster on your target platform.
+
+        @param text Multiline piece of text to be added to this `PrettyBuf`.
+        @param finalNewLine If set to false, will not push a single additional new line character.
+        Note: If your `text` ends with new line characters, it might not work like you expect it to.
     **/
-    public final function addMultiline(s: String) {
+    public final function addMultiline(text: String, finalNewLine: Bool = true) {
         #if js
-        addMultilineJsImpl(s);
+        addMultilineJsImpl(text);
         #else
-        addMultilineDefaultImpl(s);
+        addMultilineDefaultImpl(text);
         #end
+        if (!finalNewLine) {
+            popToken();
+        }
     }
 
     /**
@@ -127,7 +134,7 @@ class PrettyBuf {
             currentCode = StringTools.fastCodeAt(s, currentPos++);
         }
 
-        if ((strLength - lastEolPos) > 1) {
+        if (strLength != lastEolPos) {
             this.addLine(s.substring(lastEolPos));
         }
     }
@@ -151,8 +158,8 @@ class PrettyBuf {
         and adds them to this buffer,
         adding new line and indentation tokens where necessary.
     **/
-    public final function addMultilineWithDelimiter(s: String, delimiter: String) {
-        for (line in s.split(delimiter)) {
+    public final function addMultilineWithDelimiter(text: String, delimiter: String) {
+        for (line in text.split(delimiter)) {
             this.addLine(line);
         }
     }
