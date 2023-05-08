@@ -21,3 +21,7 @@
 --next
 
 --lua test/out/lua/test.lua
+
+--next
+
+--cpp test/out/cpp

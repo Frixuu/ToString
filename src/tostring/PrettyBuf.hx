@@ -103,11 +103,22 @@ class PrettyBuf {
         Note: If your `text` ends with new line characters, it might not work like you expect it to.
     **/
     public final function addMultiline(text: String, finalNewLine: Bool = true) {
+
+        // Fail path is common for all approaches
+        if (text.length == 0) {
+            if (finalNewLine) {
+                this.addLine();
+            }
+            return;
+        }
+
         #if js
         addMultilineJsImpl(text);
         #else
         addMultilineDefaultImpl(text);
         #end
+
+        // Internally, we know that addLine() calls always pushes NewLine token as the last one
         if (!finalNewLine) {
             popToken();
         }
@@ -119,23 +130,28 @@ class PrettyBuf {
         This implementation parses the input character-by-character.
     **/
     private inline function addMultilineDefaultImpl(s: String) {
-        final strLength: Int = s.length;
-        var lastEolPos: Int = 0;
-        var currentPos: Int = 0;
-        var currentCode: Int = StringTools.fastCodeAt(s, currentPos++);
-        while (currentPos < strLength) {
-            // TODO: this implementation also matches multiple CR chars, which is inconsistent
-            if (currentCode == LF || currentCode == CR) {
-                if ((currentPos - lastEolPos) > 1 || StringTools.fastCodeAt(s, lastEolPos) == CR) {
-                    this.addLine(s.substring(lastEolPos, currentPos - 1));
-                }
-                lastEolPos = currentPos;
-            }
-            currentCode = StringTools.fastCodeAt(s, currentPos++);
-        }
 
-        if (strLength != lastEolPos) {
-            this.addLine(s.substring(lastEolPos));
+        final strLength: Int = s.length;
+
+        var currentPos: Int = 0;
+        var lastLineStartPos: Int = 0;
+
+        do {
+            if (StringTools.fastCodeAt(s, currentPos) == LF) {
+                if (currentPos > 0 && StringTools.fastCodeAt(s, currentPos - 1) == CR) {
+                    this.addLine(s.substring(lastLineStartPos, currentPos - 1));
+                } else {
+                    this.addLine(s.substring(lastLineStartPos, currentPos));
+                }
+                lastLineStartPos = currentPos + 1;
+            }
+            currentPos += 1;
+        } while (currentPos < strLength);
+
+        if (strLength != lastLineStartPos) {
+            // If the text has not ended with a line break,
+            // add the remaining portion as a line
+            this.addLine(s.substring(lastLineStartPos));
         }
     }
 
@@ -143,13 +159,12 @@ class PrettyBuf {
     /**
         Adds a multiline string to this buffer, using built-in Regexp functionality.
 
-        This JS-specific solution seems to be about 2 times faster than the default implementation.
+        This JS-specific solution seems to be noticably faster than the default implementation.
         See the `benches/` directory in the repository.
     **/
     private inline function addMultilineJsImpl(s: String) {
-        for (line in s.split(untyped newLineRegex)) {
-            this.addLine(line);
-        }
+        // see `RegExp.prototype[@@split]`
+        this.addMultilineWithDelimiter(s, untyped newLineRegex);
     }
     #end
 
@@ -159,7 +174,19 @@ class PrettyBuf {
         adding new line and indentation tokens where necessary.
     **/
     public final function addMultilineWithDelimiter(text: String, delimiter: String) {
-        for (line in text.split(delimiter)) {
+
+        final lines = text.split(delimiter);
+
+        // If the separator is matched at the end of an input,
+        // the last element of an array is empty string, which we do not want to add.
+        // (The array is guaranteed to have at least one element)
+        final lastElem = lines.pop();
+        if (lastElem != null && lastElem != "") {
+            // Whoops, sorry! Backtracking
+            lines.push(lastElem);
+        }
+
+        for (line in lines) {
             this.addLine(line);
         }
     }
